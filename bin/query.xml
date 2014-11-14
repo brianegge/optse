@@ -1,0 +1,24 @@
+<osm-script output="xml" timeout="250">
+  <id-query {{nominatimArea:Ridgefield Connecticut}} into="area"/>
+  <!-- gather results -->
+  <union>
+    <!-- query part for: “highway” -->
+    <query type="node">
+      <has-kv k="amenity" v="restaurant"/>
+      <has-kv k="name"/>
+      <area-query from="area"/>
+    </query>
+    <query type="way">
+      <has-kv k="amenity" v="restaurant"/>
+      <has-kv k="name"/>
+      <area-query from="area"/>
+    </query>
+    <query type="relation">
+      <has-kv k="amenity" v="restaurant"/>
+      <has-kv k="name"/>
+      <area-query from="area"/>
+    </query>
+  </union>
+  <!-- print results -->
+  <print mode="meta" geometry="center"/>
+</osm-script>

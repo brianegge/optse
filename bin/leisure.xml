@@ -1,0 +1,23 @@
+<osm-script output="xml" timeout="250">
+  <id-query type="area" ref="2705805056" into="area"/>
+  <!-- gather results -->
+  <union>
+    <query type="node">
+      <has-kv k="leisure" />
+      <has-kv k="name"/>
+      <area-query from="area"/>
+    </query>
+    <query type="way">
+      <has-kv k="leisure" />
+      <has-kv k="name"/>
+      <area-query from="area"/>
+    </query>
+    <query type="relation">
+      <has-kv k="leisure" />
+      <has-kv k="name"/>
+      <area-query from="area"/>
+    </query>
+  </union>
+  <!-- print results -->
+  <print mode="meta" geometry="center"/>
+</osm-script>

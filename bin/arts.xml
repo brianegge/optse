@@ -1,0 +1,38 @@
+<osm-script output="xml" timeout="250">
+  <id-query type="area" ref="2705805056" into="area"/>
+  <!-- gather results -->
+  <union>
+    <query type="node">
+      <has-kv k="amenity" regv="arts_centre|planetarium" />
+      <has-kv k="name"/>
+      <area-query from="area"/>
+    </query>
+    <query type="way">
+      <has-kv k="amenity" regv="arts_centre|planetarium"/>
+      <has-kv k="name"/>
+      <area-query from="area"/>
+    </query>
+    <query type="relation">
+      <has-kv k="amenity" regv="arts_centre|planetarium"/>
+      <has-kv k="name"/>
+      <area-query from="area"/>
+    </query>
+    <query type="node">
+      <has-kv k="tourism" regv="attraction|aquarium|gallery|museum|theme_park|zoo|yes" />
+      <has-kv k="name"/>
+      <area-query from="area"/>
+    </query>
+    <query type="way">
+      <has-kv k="tourism" regv="attraction|aquarium|gallery|information|museum|theme_park|zoo|yes" />
+      <has-kv k="name"/>
+      <area-query from="area"/>
+    </query>
+    <query type="relation">
+      <has-kv k="tourism" regv="attraction|aquarium|gallery|information|museum|theme_park|zoo|yes" />
+      <has-kv k="name"/>
+      <area-query from="area"/>
+    </query>
+  </union>
+  <!-- print results -->
+  <print mode="meta" geometry="center"/>
+</osm-script>

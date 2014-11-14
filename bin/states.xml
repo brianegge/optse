@@ -1,0 +1,18 @@
+<osm-script output="xml" timeout="10000">
+  <id-query type="relation" ref="148838" into="area"/>
+  <!-- gather results -->
+  <union>
+    <query type="way">
+      <has-kv k="boundary" v="administrative" />
+      <has-kv k="admin_level" v="8"/>
+      <area-query from="area"/>
+    </query>
+    <query type="relation">
+      <has-kv k="boundary" v="administrative" />
+      <has-kv k="admin_level" v="8"/>
+      <area-query from="area"/>
+    </query>
+  </union>
+  <!-- print results -->
+  <print mode="meta" geometry="center"/>
+</osm-script>

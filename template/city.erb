@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <meta charset="utf-8">
+
+  <title><%= city %> <%= state %> City Guide</title>
+  <meta name="description" content="Local area attractions and dining guide for <%= display_name %>
+  <meta name="keywords" content="openstreetmap local directory">
+  <link rel="stylesheet" href="<%= root %>/style.css" type="text/css">
+  
+  <script src="<%= root %>/js/cufon-yui.js" type="text/javascript"></script>
+  <script src="<%= root %>/js/cufonfonts.js" type="text/javascript"></script>
+		<script type="text/javascript">
+			Cufon.replace('h1,h2'); // Works without a selector engine
+			Cufon.replace('#menu li'); // Requires a selector engine for IE 6-7, see above
+		</script>
+</head>
+
+<body>
+  <div id="page">
+    
+    <div id="header">  <img src="banner.png" alt="<%= display_name %>"></div>
+
+<!-- end #logo -->
+    <!-- menu start -->
+
+    <div id="menu">
+  
+      <ul>
+
+        <li><a href="/index.html">Home</a></li>
+
+        <li><a href="/states.html">States</a></li>
+
+        <li><a href="/<%= state %>/"><%= state %></a></li>
+
+        <!-- li><a href="">Night Life</a></li>
+
+        <li><a href="">Eat Out</a></li>
+
+        <li><a href="">Hotels</a></li>
+
+        <li><a href="">Gallery</a></li>
+
+        <li><a href="">Contact Us</a></li -->
+   
+      </ul>
+  
+    </div>
+
+    <!-- menu end -->
+
+    <div id="content">
+ 
+
+      <div id="textarea">
+        <h1><a id="food">Food &amp; Drink</a></h1>
+        <img src="<%= root %>/images/dining_rounded.png" alt="02" class="float2" />
+        <h2>Dining in <%= city %></h2>
+        <% dining.each do |d| %>
+          <p><%= d.html %></p><hr />
+        <% end %>
+        <br>
+        <br>
+        <% if cafes.any? %>
+          <img src="<%= root %>/images/coffee_rounded.png" alt="02" class="float2" />
+          <h2><a id="cafes">Cafes</a></h2>
+          <% cafes.each do |d| %>
+            <p><%= d.html %></p><hr />
+          <% end %>
+          <br>
+          <br>
+        <% end %>
+        <% if icecream.any? %>
+          <img src="<%= root %>/images/icecream_rounded.png" alt="02" class="float2" />
+          <h2><a id="icecream">Ice-Cream and frozen yogurt</a></h2>
+          <% icecream.each do |d| %>
+            <p><%= d.html %></p><hr />
+          <% end %>
+          <br>
+          <br>
+        <% end %>
+        <br>
+        <br>
+        <h1><a id="activities">Activities</a></h1>
+        <% if entertainment.any? %>
+          <img src="<%= root %>/images/01.png" alt="01" class="float1" />
+          <h2><a id="entertainment">Entertainment</a></h2>
+          <% entertainment.each do |d| %>
+            <p><%= d.html %></p><hr />
+          <% end %>
+          <br>
+          <br>
+        <% end %>
+        <% if arts.any? %>
+          <h2><a id="entertainment">Places to visit</a></h2>
+          <img src="<%= root %>/images/museum_rounded.png" alt="02" class="float2" />
+          <% arts.each do |d| %>
+            <p><%= d.html %></p><hr />
+          <% end %>
+          <br>
+          <br>
+        <% end %>
+        <% if leisure.any? %>
+          <h2><a id="leisure">Recreation</a></h2>
+          <% leisure.each do |d| %>
+            <p><%= d.html %></p><hr />
+          <% end %>
+          <br>
+          <br>
+        <% end %>
+        <br>
+        <br>
+        <% if hotels.any? %>
+          <img src="<%= root %>/images/hotel_rounded.png" alt="02" class="float2" />
+          <h1><a id="lodging">Lodging</a></h1>
+          <% hotels.each do |d| %>
+            <p><%= d.html %></p><hr />
+          <% end %>
+          <br>
+          <br>
+        <% end %>
+
+        <% if churches.any? %>
+          <img src="<%= root %>/images/church_rounded.png" alt="02" class="float2" />
+          <h1><a id="churches">Worship</a></h1>
+          <% churches.each do |d| %>
+            <p><%= d.html %></p><hr />
+          <% end %>
+          <br>
+          <br>
+        <% end %>
+        
+
+        <br>
+        <br>
+
+      </div>
+
+      <div id="sidebar">
+      
+	<ul>
+
+    <li>
+
+					<h2>Jump to</h2>
+
+					<ul>
+                    
+                    <li><a href="#food">Food &amp; Drink</a></li>
+                    <li><a href="#activities">Activities</a></li>
+        <% if hotels.any? %>
+                    <li><a href="#lodging">Lodging</a></li>
+        <% end %>
+        <% if churches.any? %>
+                    <li><a href="#churches">Places of Worship</a></li>
+        <% end %>
+                   
+					</ul>
+
+				</li>
+
+                </ul>
+
+      </div>
+      
+      
+      <img src="<%= root %>/images/bg_banner_grey.gif" width="880" height="5" alt=
+      "line">
+
+      <div id="footer">
+        <div id="footerleft">
+          <%= city %> <%= state %> City Guide<br />
+          &copy; Brian Egge; &copy; OpenStreetMap contributors
+        </div>
+
+        <div id="footerright">
+          <!-- a href="#"><img src="<%= root %>/images/facebook.png" alt="facebook" width="32" height=
+          "32"></a> <a href="#"><img src="<%= root %>/images/twitter.png" alt="twitter" width="32"
+          height="32"></a> <a href="#"><img src="<%= root %>/images/linkedin.png" alt="linkedin"
+          width="32" height="32"></a> <a href="#"><img src="<%= root %>/images/youtube.png" alt=
+          "youtube" width="32" height="32"></a> <a href="#"><img src="<%= root %>/images/rss.png"
+          alt="rss" width="32" height="32"></a -->
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

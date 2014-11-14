@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <meta charset="utf-8">
+
+  <title><%= state %> City Guide</title>
+  <meta name="description" content="Local area attractions and dining guide for <%= state %>">
+  <meta name="keywords" content="openstreetmap local directory">
+  <link rel="stylesheet" href="<%= root %>/style.css" type="text/css">
+  
+  <script src="<%= root %>/js/cufon-yui.js" type="text/javascript"></script>
+  <script src="<%= root %>/js/cufonfonts.js" type="text/javascript"></script>
+		<script type="text/javascript">
+			Cufon.replace('h1,h2'); // Works without a selector engine
+			Cufon.replace('#menu li'); // Requires a selector engine for IE 6-7, see above
+		</script>
+</head>
+
+<body>
+  <div id="page">
+    
+    <div id="header">  <img src="banner.png" alt="<%= state %>"></div>
+
+<!-- end #logo -->
+    <!-- menu start -->
+
+    <div id="menu">
+  
+      <ul>
+
+        <li><a href="<%= root %>/index.html">Home</a></li>
+
+        <li><a href="<%= root %>/states.html">States</a></li>
+
+      </ul>
+  
+    </div>
+
+    <!-- menu end -->
+
+    <div id="content">
+ 
+
+      <div id="textarea">
+        <% counties.each do |county| %>
+        <h2>Guides for <%= county %></h2>
+        <% places.values.select { |p| p.county == county }.each do |p| %>
+          <p><a href="<%= p.city.parameterize %>/" title="Guide to <%= p.city %>, <%= p.state %>"><%= p.city %></a></p>
+        <% end %>
+        <br>
+        <br>
+        <% end %>
+
+      </div>
+
+      <div id="sidebar">
+      
+      </div>
+      
+      
+      <img src="<%= root %>/images/bg_banner_grey.gif" width="880" height="5" alt="line">
+
+      <div id="footer">
+        <div id="footerleft">
+          <%= state %> City Guide<br />
+          &copy; Brian Egge; &copy; OpenStreetMap contributors
+        </div>
+
+        <div id="footerright">
+          <!-- a href="#"><img src="<%= root %>/images/facebook.png" alt="facebook" width="32" height=
+          "32"></a> <a href="#"><img src="<%= root %>/images/twitter.png" alt="twitter" width="32"
+          height="32"></a> <a href="#"><img src="<%= root %>/images/linkedin.png" alt="linkedin"
+          width="32" height="32"></a> <a href="#"><img src="<%= root %>/images/youtube.png" alt=
+          "youtube" width="32" height="32"></a> <a href="#"><img src="<%= root %>/images/rss.png"
+          alt="rss" width="32" height="32"></a -->
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
