@@ -50,7 +50,6 @@ class Address
     return nil
   end
   def detail
-    o = ""
     if @cuisine then
       cuisine = case @cuisine
                 when "burger"
@@ -60,9 +59,10 @@ class Address
                 else
                   @cuisine
                 end
-      o += "#{cuisine.capitalize}"
+      "#{cuisine.capitalize}"
+    else
+      nil
     end
-    return o
   end
   def html
     o = "<a href=\"#{@view}\" title=\"View #{@name} on OpenStreetMap.org\" target=\"osm\"><strong>#{@name}</strong></a><br />\n"
@@ -81,7 +81,7 @@ class Address
       o += "</ul>\n"
     end
     if @street then
-      o += "#{@housenumber} #{@street} "
+      o += "#{@housenumber} #{@street}<br />\n"
     end
     # o += " <small><a href=\"http://www.google.com/maps/place/#{@name}/@#{@lat},#{@lon}\" target=\"map\">map</a><br />\n</small>"
     # o += " <small><a href=\"https://maps.google.com?ll=#{@lat},#{@lon}&q=#{@name}\" target=\"map\">map</a><br />\n</small>"
@@ -97,7 +97,7 @@ class Address
       end
     end
     if @opening_hours then
-      o += "#{@opening_hours}&nbsp;&nbsp;"
+      o += "Open #{@opening_hours}&nbsp;&nbsp;"
     end
     if @organic then
       o += "<img src=\"#{$html_root}/images/organic32.png\" alt_text=\"Organic\" />&nbsp;"
@@ -105,7 +105,7 @@ class Address
     if @wifi then
       o += "<img src=\"#{$html_root}/images/wifi32.png\" alt_text=\"Wifi\">\&nbsp;"
     end
-    o += "<small><a href=\"#{@edit}\" title=\"Edit #{@name} on OpenStreetMap\" target=\"edit\">edit</a></small>"
+    # o += "<small><a href=\"#{@edit}\" title=\"Edit #{@name} on OpenStreetMap\" target=\"edit\">edit</a></small>"
     o
   end
   def sortkey
@@ -154,10 +154,14 @@ def parse(file, type)
     a = type.new(node)
     output << a
   end
+  doc.xpath("//relation").each do |node| 
+    a = type.new(node)
+    output << a
+  end
   return output.sort_by { |a| a.sortkey }
 end
 
-def render(city_dir, city, state, display_name, root)
+def render(city_dir, city, state, place, root)
   $html_root=root
   dining = parse(File.join(city_dir,'dining.xml'), Address)
   cafes = parse(File.join(city_dir,'cafes.xml'), Cafe)
@@ -167,7 +171,9 @@ def render(city_dir, city, state, display_name, root)
   arts = parse(File.join(city_dir,'arts.xml'), Address)
   leisure = parse(File.join(city_dir,'leisure.xml'), Address)
   golf = []
-  leisure.delete_if {|v| golf << v if v.leisure = 'golf_course'}
+  leisure.delete_if {|v| golf << v if v.leisure == 'golf_course'}
+  playgrounds = []
+  leisure.delete_if {|v| playgrounds << v if v.leisure == 'playground'}
 
   hotels = parse(File.join(city_dir,'hotels.xml'), Address)
   churches = parse(File.join(city_dir,'churches.xml'), Church)
@@ -184,7 +190,8 @@ def render_state(state, state_html, places, root)
   File.open(state_html, 'w') { |f| f.print(out) }
 end
 def render_index(states, output)
-  $html_root='.'
+  root='.'
+  states=states
   renderer = ERB.new(File.read('template/index.erb'))
   out = renderer.result(binding)
   File.open(output, 'w') { |f| f.print(out) }

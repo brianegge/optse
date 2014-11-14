@@ -48,31 +48,32 @@ class City
 end
 
 class Place
-  attr_reader :display_name, :county, :city, :state
+  attr_reader :display_name, :county, :city, :state, :link
   class << self
     protected :new
     def city(city, state)
       json = JSON.load(open("http://nominatim.openstreetmap.org/search?format=json&city=#{URI::encode(city)}&state=#{URI::encode(state)}&email=#{URI::encode(EMAIL)}&addressdetails=1&limit=1"))
-      new(json)
+      sleep 1
+      new(json[0])
     end
     def state(state)
       json = JSON.load(open("http://nominatim.openstreetmap.org/search?format=json&state=#{URI::encode(state)}&email=#{URI::encode(EMAIL)}&addressdetails=1&limit=1"))
-      new(json)
+      sleep 1
+      new(json[0])
     end
   end
 
   def initialize(json)
-    sleep 1
-    json = resp[0]
     @place_id = json['place_id']
     @osm_id = json['osm_id'].to_i
     @osm_type = json['osm_type']
+    @link = "http://www.openstreetmap.org/#{@osm_type}/#{@osm_id}"
     @display_name = (json['display_name'] or raise "No display_name is #{json}")
     @class = json['class']
     @type = json['type']
     @boundingbox = json['boundingbox']
     @county = json['address']['county']
-    @city = (json['address']['city'] or json['address']['village'] or json['address']['hamlet'] or raise "No city in #{json}")
+    @city = (json['address']['city'] or json['address']['village'] or json['address']['hamlet'])
     @state = json['address']['state']
   end
   def ref
@@ -90,11 +91,11 @@ class Place
     "#{lat},#{lon}"
   end
 end
-def banner(title, center, output)
-  city_map=Tempfile.new('map')
-  city_text=Tempfile.new('text')
-  city_text2=Tempfile.new('text2')
-  `wget -O #{city_map} "http://staticmap.openstreetmap.de/staticmap.php?center=#{center}&zoom=15&size=900x200&maptype=mapnik"`
+def banner(title, center, zoom, output)
+  city_map=Tempfile.new(['map','.png']).path
+  city_text=Tempfile.new(['text','.png']).path
+  city_text2=Tempfile.new(['text2','.png']).path
+  %x{wget --quiet -O #{city_map} "http://staticmap.openstreetmap.de/staticmap.php?center=#{center}&zoom=#{zoom}&size=900x200&maptype=mapnik"}
   `convert -background none -gravity center -stroke grey -size 900x200 -fill black  -font Century -blur 0x5 -fill black "label:#{title}" #{city_text}`
   `convert -background none -gravity center -stroke grey -size 900x200 -fill black  -font Century "label:#{title}"  #{city_text2}`
   `convert -page 0 #{city_map} -page +5+5 #{city_text} -page -0 #{city_text2} -layers flatten #{output}`
@@ -127,6 +128,7 @@ STATES.each do |state|
     city = city_node.name
     city_html_dir=File.join(HTML_DIR, state.parameterize, city.parameterize)
     city_html=File.join(city_html_dir,'index.html')
+    place = nil
     if not File.exist?(city_html) then
       FileUtils.mkdir_p city_html_dir
       place = Place.city(city, state)
@@ -149,12 +151,12 @@ STATES.each do |state|
           sleep 1
         end
       end
-      File.open(city_html, 'w') { |f| f.print(render(city_dir, city, state, place.display_name, "../..")) }
-
-      city_banner=File.join(city_html_dir,'banner.png')
-      if not File.exist?(city_banner) then
-        banner(city, place.center, city_banner)
-      end
+      File.open(city_html, 'w') { |f| f.print(render(city_dir, city, state, place, "../..")) }
+    end
+    city_banner=File.join(city_html_dir,'banner.png')
+    if not File.exist?(city_banner) then
+      place ||= Place.city(city, state)
+      banner(city, place.center, 15, city_banner)
     end
   end
   if not File.exist?(state_html) then
@@ -165,13 +167,13 @@ STATES.each do |state|
         places[city] = Place.city(city, state)
       end
     end
+    render_state(state, state_html, places, '..')
   end
-  render_state(state, state_html, places, '..')
   state_banner=File.join(HTML_DIR, state, 'banner.png')
   if not File.exist?(state_banner) then
     place = Place.state(state)
-    banner(city, place.center, city_banner)
+    banner(state, place.center, 9, state_banner)
   end
 end
-index_html=File.join(HTML_DIR, state, 'index.html')
+index_html=File.join(HTML_DIR, 'index.html')
 render_index(STATES,index_html) 

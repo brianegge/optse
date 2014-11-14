@@ -20,7 +20,7 @@
 <body>
   <div id="page">
     
-    <div id="header">  <img src="skyline.jpg" alt="<%= state %>"></div>
+    <div id="header">  <img src="images/skyline.jpg" alt="skyline"></div>
 
 <!-- end #logo -->
     <!-- menu start -->
@@ -41,13 +41,12 @@
  
 
       <div id="textarea">
-        <h2>Guides for United States</h2>
-        <% states.each do |state| %>
-          <p><a href="<%= state.parameterize %>/" title="Guide to <%= p.state %>"></a></p>
+        <h2>Guides for The United States</h2>
+        <% STATES.each do |state| %>
+          <p><a href="<%= state.parameterize %>/" title="Guide to <%= state %>"><%= state %></a></p>
         <% end %>
         <br>
         <br>
-        <% end %>
 
       </div>
 

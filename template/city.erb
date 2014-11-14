@@ -5,7 +5,7 @@
   <meta charset="utf-8">
 
   <title><%= city %> <%= state %> City Guide</title>
-  <meta name="description" content="Local area attractions and dining guide for <%= display_name %>
+  <meta name="description" content="Local area attractions and dining guide for <%= place.display_name %>
   <meta name="keywords" content="openstreetmap local directory">
   <link rel="stylesheet" href="<%= root %>/style.css" type="text/css">
   
@@ -20,7 +20,7 @@
 <body>
   <div id="page">
     
-    <div id="header">  <img src="banner.png" alt="<%= display_name %>"></div>
+    <div id="header">  <a href="<%= place.link %>" target="osm" title="<%= place.display_name %>"><img src="banner.png" alt="<%= place.display_name %>"></a></div>
 
 <!-- end #logo -->
     <!-- menu start -->
@@ -33,7 +33,7 @@
 
         <li><a href="/states.html">States</a></li>
 
-        <li><a href="/<%= state %>/"><%= state %></a></li>
+        <li><a href="<%= root %>/<%= state.parameterize %>/"><%= state %></a></li>
 
         <!-- li><a href="">Night Life</a></li>
 
@@ -74,7 +74,7 @@
         <% end %>
         <% if icecream.any? %>
           <img src="<%= root %>/images/icecream_rounded.png" alt="02" class="float2" />
-          <h2><a id="icecream">Ice-Cream and frozen yogurt</a></h2>
+          <h2><a id="icecream">Ice-Cream and Frozen Yogurt</a></h2>
           <% icecream.each do |d| %>
             <p><%= d.html %></p><hr />
           <% end %>
@@ -102,9 +102,27 @@
           <br>
           <br>
         <% end %>
+
+        <h1><a id="leisure">Recreation</a></h1>
+        <% if playgrounds.any? %>
+          <h2><a id="playgrounds">Playgrounds</a></h2>
+          <% playgrounds.each do |d| %>
+            <p><%= d.html %></p><hr />
+          <% end %>
+          <br>
+          <br>
+        <% end %>
         <% if leisure.any? %>
-          <h2><a id="leisure">Recreation</a></h2>
+          <h2><a id="leisure">Parks</a></h2>
           <% leisure.each do |d| %>
+            <p><%= d.html %></p><hr />
+          <% end %>
+          <br>
+          <br>
+        <% end %>
+        <% if golf.any? %>
+          <h2><a id="golf">Golf</a></h2>
+          <% golf.each do |d| %>
             <p><%= d.html %></p><hr />
           <% end %>
           <br>
