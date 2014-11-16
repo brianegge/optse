@@ -1,10 +1,12 @@
-#!/opt/local/bin/ruby1.9
+#!/usr/bin/ruby1.9.1
+
+require 'rubygems'
+require 'active_support/inflector'
 
 require_relative 'generate'
 require 'nokogiri'
 require 'open-uri'
 require 'erb'
-require 'active_support/inflector'
 require 'fileutils'
 require 'tempfile'
 require 'json'
@@ -15,12 +17,14 @@ QUERY_DIR=File.join(ROOT_DIR, 'bin')
 DATA_DIR=File.join(ROOT_DIR, 'data')
 HTML_DIR=File.join(ROOT_DIR, 'html')
 
+FileUtils.mkdir_p DATA_DIR
+
 class City
   attr_reader :type, :id, :name
   def initialize(xml)
     @type = xml.name
     @id = xml.attr('id')
-    @name = ( get(xml,'name') or get(xml,'place_name') or raise "Can't find place name in #{@id}" )
+    @name = ( get(xml,'name') or get(xml,'place_name') or raise "Can't find place name in #{xml}" )
     @county = get(xml,'is_in:county')
     @lat = xml.at_xpath('center').attr('lat')
     @lon = xml.at_xpath('center').attr('lon')
@@ -92,12 +96,13 @@ class Place
   end
 end
 def banner(title, center, zoom, output)
+  puts "rendering banner #{title}"
   city_map=Tempfile.new(['map','.png']).path
   city_text=Tempfile.new(['text','.png']).path
   city_text2=Tempfile.new(['text2','.png']).path
   %x{wget --quiet -O #{city_map} "http://staticmap.openstreetmap.de/staticmap.php?center=#{center}&zoom=#{zoom}&size=900x200&maptype=mapnik"}
-  `convert -background none -gravity center -stroke grey -size 900x200 -fill black  -font Century -blur 0x5 -fill black "label:#{title}" #{city_text}`
-  `convert -background none -gravity center -stroke grey -size 900x200 -fill black  -font Century "label:#{title}"  #{city_text2}`
+  `convert -background none -gravity center -stroke grey -size 900x200 -fill black  -font Century-Schoolbook-Roman -blur 0x5 -fill black "label:#{title}" #{city_text}`
+  `convert -background none -gravity center -stroke grey -size 900x200 -fill black  -font Century-Schoolbook-Roman "label:#{title}"  #{city_text2}`
   `convert -page 0 #{city_map} -page +5+5 #{city_text} -page -0 #{city_text2} -layers flatten #{output}`
 end
 
@@ -105,7 +110,15 @@ STATES=['Connecticut']
 STATES.each do |state|
   out=File.join(DATA_DIR,state.parameterize + ".xml")
   if !File.exist?(out) then
-    `wget --user-agent="brianegge@gmail.com" -O "#{out}" --post-file="#{QUERY_DIR}/state.xml" "http://overpass-api.de/api/interpreter"` or raise "Failed to query #{state}"
+    place = Place.state(state)
+    input=File.join(QUERY_DIR,"states.xml")
+    template = Nokogiri.XML(File.open(input))
+    node = template.at_xpath("//id-query")
+    node.attributes['ref'].value = place.ref.to_s
+    query=Tempfile.new('query')
+    File.open(query.path, 'w') { |f| f.print(template.to_xml) }
+    puts template.to_xml
+    puts `wget --user-agent="brianegge@gmail.com" -O "#{out}" --post-file="#{query.path}" "http://overpass-api.de/api/interpreter"`
     sleep 1
   else
     puts "#{out} exists"
@@ -121,7 +134,7 @@ STATES.each do |state|
     cities << a
   end
   state_dir=File.join(DATA_DIR, state.parameterize) 
-  state_html=File.join(HTML_DIR, state, 'index.html')
+  state_html=File.join(HTML_DIR, state.parameterize, 'index.html')
   FileUtils.mkdir_p state_dir
   places = {}
   cities.each do |city_node|
@@ -169,7 +182,7 @@ STATES.each do |state|
     end
     render_state(state, state_html, places, '..')
   end
-  state_banner=File.join(HTML_DIR, state, 'banner.png')
+  state_banner=File.join(HTML_DIR, state.parameterize, 'banner.png')
   if not File.exist?(state_banner) then
     place = Place.state(state)
     banner(state, place.center, 9, state_banner)
