@@ -31,7 +31,7 @@ class Address
     @name = get(xml,'name')
     @housenumber = get(xml,'addr:housenumber')
     @street = get(xml,'addr:street')
-    @website = get(xml,'website')
+    @website = (get(xml,'website') or get(xml,'contact:website'))
     @wikipedia = get(xml,'wikipedia')
     @cuisine = get(xml,'cuisine')
     @organic = get(xml,'organic') == 'yes'
@@ -39,8 +39,20 @@ class Address
     @beers = get(xml,'brewery')
     @description = get(xml,'description')
     @opening_hours = get(xml,'opening_hours')
-    @phone = get(xml,'phone')
+    @phone = (get(xml,'phone') or get(xml, 'contact:phone'))
     @leisure = get(xml,'leisure')
+  end
+  def ranking
+    score=0
+    score += 1 if @type == 'way'
+    score += 5 if @type == 'relation'
+    score += 1 unless @housenumber.nil?
+    score += 0.5 unless @street.nil?
+    score += 5 unless @wikipedia.nil?
+    score += 2 unless @descrition.nil?
+    score += 1 unless @website.nil?
+    score += 2 unless @opening_hours.nil?
+    score
   end
   def get(xml, key)
     node = xml.at_xpath("tag[@k='#{key}']")
@@ -174,12 +186,19 @@ def render(city_dir, city, state, place, root)
   leisure.delete_if {|v| golf << v if v.leisure == 'golf_course'}
   playgrounds = []
   leisure.delete_if {|v| playgrounds << v if v.leisure == 'playground'}
+  leisure.delete_if {|v| v.type == 'node'}
 
   hotels = parse(File.join(city_dir,'hotels.xml'), Address)
   churches = parse(File.join(city_dir,'churches.xml'), Church)
+  #churches.each { |p| puts "#{p.name} : #{p.ranking}" }
+  churches.delete_if { |p| p.ranking == 0 }
 
-  renderer = ERB.new(File.read('template/city.erb'))
-  renderer.result(binding)
+  if dining.size + cafes.size + icecream.size + entertainment.size + arts.size + leisure.size + golf.size + playgrounds.size + hotels.size + churches.size == 0 then
+    nil
+  else
+    renderer = ERB.new(File.read('template/city.erb'))
+    renderer.result(binding)
+  end
 end
 
 def render_state(state, state_html, places, root)

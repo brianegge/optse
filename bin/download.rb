@@ -1,4 +1,4 @@
-#!/usr/bin/ruby1.9.1
+#!/usr/bin/ruby1.9.1 --disable-gems
 
 require 'rubygems'
 require 'active_support/inflector'
@@ -16,15 +16,18 @@ ROOT_DIR=File.dirname(File.dirname(__FILE__))
 QUERY_DIR=File.join(ROOT_DIR, 'bin')
 DATA_DIR=File.join(ROOT_DIR, 'data')
 HTML_DIR=File.join(ROOT_DIR, 'html')
+STATES=['Colorado', 'Connecticut', 'Wyoming']
 
 FileUtils.mkdir_p DATA_DIR
 
 class City
   attr_reader :type, :id, :name
+  attr_accessor :empty
+  alias_method :empty?, :empty
   def initialize(xml)
     @type = xml.name
     @id = xml.attr('id')
-    @name = ( get(xml,'name') or get(xml,'place_name') or raise "Can't find place name in #{xml}" )
+    @name = ( get(xml,'name') or get(xml,'place_name') or get(xml,'tiger:NAME') or raise ArgumentError,"Can't find place name in #{xml}" )
     @county = get(xml,'is_in:county')
     @lat = xml.at_xpath('center').attr('lat')
     @lon = xml.at_xpath('center').attr('lon')
@@ -56,7 +59,10 @@ class Place
   class << self
     protected :new
     def city(city, state)
-      json = JSON.load(open("http://nominatim.openstreetmap.org/search?format=json&city=#{URI::encode(city)}&state=#{URI::encode(state)}&email=#{URI::encode(EMAIL)}&addressdetails=1&limit=1"))
+      url="http://nominatim.openstreetmap.org/search?format=json&city=#{URI::encode(city)}&state=#{URI::encode(state)}&email=#{URI::encode(EMAIL)}&addressdetails=1&limit=1"
+      json = JSON.load(open(url))
+      raise "Failed to open #{url}" if json.nil?
+      raise ArgumentError, "No results for #{url}" if (json.empty? or json[0].nil?)
       sleep 1
       new(json[0])
     end
@@ -106,7 +112,6 @@ def banner(title, center, zoom, output)
   `convert -page 0 #{city_map} -page +5+5 #{city_text} -page -0 #{city_text2} -layers flatten #{output}`
 end
 
-STATES=['Connecticut']
 STATES.each do |state|
   out=File.join(DATA_DIR,state.parameterize + ".xml")
   if !File.exist?(out) then
@@ -117,19 +122,22 @@ STATES.each do |state|
     node.attributes['ref'].value = place.ref.to_s
     query=Tempfile.new('query')
     File.open(query.path, 'w') { |f| f.print(template.to_xml) }
-    puts template.to_xml
-    puts `wget --user-agent="brianegge@gmail.com" -O "#{out}" --post-file="#{query.path}" "http://overpass-api.de/api/interpreter"`
+    puts `wget --no-verbose --user-agent="brianegge@gmail.com" -O "#{out}" --post-file="#{query.path}" "http://overpass-api.de/api/interpreter"`
     sleep 1
   else
     puts "#{out} exists"
   end
   doc = Nokogiri.XML(File.open(out))
   cities = []
-  doc.xpath("//way").each do |node| 
-    a = City.new(node)
-    cities << a
-  end
   doc.xpath("//relation").each do |node| 
+    begin
+      a = City.new(node)
+      cities << a
+    rescue ArgumentError
+      puts "ignoring city without name #{node.to_xml}"
+    end
+  end
+  doc.xpath("//way").each do |node| 
     a = City.new(node)
     cities << a
   end
@@ -139,18 +147,29 @@ STATES.each do |state|
   places = {}
   cities.each do |city_node|
     city = city_node.name
+    city_dir=File.join(state_dir, city.parameterize) 
+    FileUtils.mkdir_p city_dir
     city_html_dir=File.join(HTML_DIR, state.parameterize, city.parameterize)
     city_html=File.join(city_html_dir,'index.html')
+    city_empty=File.join(city_dir,'empty')
     place = nil
-    if not File.exist?(city_html) then
+    if File.exist?(city_empty) then
+      city_node.empty = true
+    elsif File.exist?(city_html) then
+    else
       FileUtils.mkdir_p city_html_dir
-      place = Place.city(city, state)
+      begin 
+        place = Place.city(city, state)
+      rescue ArgumentError
+        puts "ignoring #{city}, #{state}"
+        FileUtils.touch(city_empty)
+        city_node.empty = true
+        next
+      end
       places[city] = place
       puts place.display_name
-      city_dir=File.join(state_dir, city.parameterize) 
 
       %w(dining cafes icecream entertainment arts leisure churches hotels).each do |t|
-        FileUtils.mkdir_p city_dir
         city_out=File.join(city_dir, t + ".xml")
         if !File.exist?(city_out) then
           puts "Getting #{city_out}"
@@ -160,14 +179,23 @@ STATES.each do |state|
           node.attributes['ref'].value = city_node.ref.to_s
           out=Tempfile.new(t)
           File.open(out.path, 'w') { |f| f.print(template.to_xml) }
-          `wget --user-agent="#{EMAIL}" -O "#{city_out}" --post-file="#{out.path}" "http://overpass-api.de/api/interpreter"` or raise "Failed to query #{city}/#{t}"
+          `wget --no-verbose --user-agent="#{EMAIL}" -O "#{city_out}" --post-file="#{out.path}" "http://overpass-api.de/api/interpreter"` or raise "Failed to query #{city}/#{t}"
           sleep 1
         end
       end
-      File.open(city_html, 'w') { |f| f.print(render(city_dir, city, state, place, "../..")) }
+      s = render(city_dir, city, state, place, "../..")
+      if s.nil? then
+        city_node.empty = true
+        FileUtils.touch(city_empty)
+      else
+        File.open(city_html, 'w') { |f| f.print(s) }
+      end
     end
     city_banner=File.join(city_html_dir,'banner.png')
     if not File.exist?(city_banner) then
+      if city_node.empty? then
+        next
+      end
       place ||= Place.city(city, state)
       banner(city, place.center, 15, city_banner)
     end
@@ -176,7 +204,10 @@ STATES.each do |state|
     puts "Rendering state #{state}"
     cities.each do |city_node|
       city = city_node.name
-      if places[city].nil? then
+      if city_node.empty? then
+        places.delete(city)
+        puts "Not including #{city} in index because it is empty"
+      elsif places[city].nil? then
         places[city] = Place.city(city, state)
       end
     end
