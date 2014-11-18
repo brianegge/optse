@@ -101,7 +101,11 @@ class Address
       o += "<a href=\"tel:#{@phone}\">#{@phone}</a><br />\n"
     end
     if @website then
-      uri = URI(@website)
+      if @website =~ /^www./ then
+        uri = URI('http://' + @website)
+      else
+        uri = URI(@website)
+      end
       if uri.host then
         o += "<a href=\"#{@website}\">#{uri.host.gsub(/^www./,'')}</a>&nbsp;"
       else
