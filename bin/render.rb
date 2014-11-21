@@ -4,12 +4,16 @@ require 'nokogiri'
 require 'open-uri'
 require 'erb'
 require 'ostruct'
+require 'geonames_api'
 
 $html_root="."
+GeoNamesAPI.username = 'brianegge'
+GeoNamesAPI.lang = :en
 
 class Address
-  attr_reader :type, :id, :lat, :lon, :name, :leisure
+  attr_reader :type, :id, :lat, :lon, :name, :leisure, :attraction, :access
   def initialize(xml)
+    @xml = xml
     @type = xml.name
     @id = xml.attr('id')
     if @type == 'node' then
@@ -28,19 +32,20 @@ class Address
     else
       raise "Unknown type #{@type}"
     end
-    @name = get(xml,'name')
-    @housenumber = get(xml,'addr:housenumber')
-    @street = get(xml,'addr:street')
-    @website = (get(xml,'website') or get(xml,'contact:website'))
-    @wikipedia = get(xml,'wikipedia')
-    @cuisine = get(xml,'cuisine')
-    @organic = get(xml,'organic') == 'yes'
-    @wifi = get(xml,'internet_access') =~ /yes|wlan/
-    @beers = get(xml,'brewery')
-    @description = get(xml,'description')
-    @opening_hours = get(xml,'opening_hours')
-    @phone = (get(xml,'phone') or get(xml, 'contact:phone'))
-    @leisure = get(xml,'leisure')
+    @access = get('access')
+    @attraction = get('actraction')
+    @beers = get('brewery')
+    @cuisine = get('cuisine')
+    @description = get('description')
+    @housenumber = get('addr:housenumber')
+    @leisure = get('leisure')
+    @name = get('name')
+    @opening_hours = get('opening_hours')
+    @phone = (get('phone') or get( 'contact:phone'))
+    @street = get('addr:street')
+    @website = (get('website') or get('contact:website'))
+    @wikipedia = get('wikipedia')
+    @near = nil
   end
   def ranking
     score=0
@@ -54,12 +59,39 @@ class Address
     score += 2 unless @opening_hours.nil?
     score
   end
-  def get(xml, key)
-    node = xml.at_xpath("tag[@k='#{key}']")
+  def get(key)
+    node = @xml.at_xpath("tag[@k='#{key}']")
     if node then
       return node.attr('v')
     end
     return nil
+  end
+  def bitcoin?
+    get('payment:bitcoin') == 'yes'
+  end
+  def organic?
+    get('organic') == 'yes'
+  end
+  def wifi?
+    get('internet_access') =~ /yes|wlan/
+  end
+  def nearest_intersection
+    begin
+      if @near.nil? then
+        @near = GeoNamesAPI::NearestIntersection.find(@lat,@lon)
+        sleep 1.8
+      end
+      if not @near.intersection.nil? then
+        print '.'
+        return @near.intersection['street1'] + " and " + @near.intersection['street2']
+      else
+        print '*'
+      end
+    rescue OpenURI::HTTPError
+      print 'X'
+    end
+    $stdout.flush
+    nil
   end
   def detail
     if @cuisine then
@@ -71,7 +103,7 @@ class Address
                 else
                   @cuisine
                 end
-      "#{cuisine.capitalize}"
+      "#{cuisine.gsub(/_/, ' ').capitalize}"
     else
       nil
     end
@@ -94,6 +126,9 @@ class Address
     end
     if @street then
       o += "#{@housenumber} #{@street}<br />\n"
+    else
+      n = self.nearest_intersection
+      o += "#{n}<br />\n" if not n.nil?
     end
     # o += " <small><a href=\"http://www.google.com/maps/place/#{@name}/@#{@lat},#{@lon}\" target=\"map\">map</a><br />\n</small>"
     # o += " <small><a href=\"https://maps.google.com?ll=#{@lat},#{@lon}&q=#{@name}\" target=\"map\">map</a><br />\n</small>"
@@ -101,31 +136,46 @@ class Address
       o += "<a href=\"tel:#{@phone}\">#{@phone}</a><br />\n"
     end
     if @website then
-      if @website =~ /^www./ then
-        uri = URI('http://' + @website)
-      else
-        uri = URI(@website)
-      end
-      if uri.host then
-        o += "<a href=\"#{@website}\">#{uri.host.gsub(/^www./,'')}</a>&nbsp;"
-      else
+      begin
+        if @website =~ /^www./ then
+          uri = URI('http://' + @website)
+        else
+          uri = URI(@website)
+        end
+        if uri.scheme.nil? then
+          @website = "http://#{@website}"
+          $stderr.puts "Invalid URL (missing scheme): #{@website} #{@edit}"
+          uri = URI(@website)
+        end
+        if uri.host then
+          o += "<a href=\"#{@website}\">#{uri.host.gsub(/^www./,'')}</a>&nbsp;"
+        else
+          $stderr.puts "Invalid URL: #{@website} #{@edit}"
+        end
+      rescue URI::InvalidURIError
         $stderr.puts "Invalid URL: #{@website} #{@edit}"
       end
     end
     if @opening_hours then
       o += "Open #{@opening_hours}&nbsp;&nbsp;"
     end
-    if @organic then
-      o += "<img src=\"#{$html_root}/images/organic32.png\" alt_text=\"Organic\" />&nbsp;"
+    if organic? then
+      o += "<img src=\"#{$html_root}/images/organic16.png\" alt_text=\"Organic\" />&nbsp;"
     end
-    if @wifi then
-      o += "<img src=\"#{$html_root}/images/wifi32.png\" alt_text=\"Wifi\">\&nbsp;"
+    if wifi? then
+      o += "<img src=\"#{$html_root}/images/wifi16.png\" alt_text=\"Free Wifi\">\&nbsp;"
+    end
+    if bitcoin? then
+      o += "<img src=\"#{$html_root}/images/bitcoin16.png\" alt_text=\"Merchant accepts Bitcoin payments\">\&nbsp;"
     end
     # o += "<small><a href=\"#{@edit}\" title=\"Edit #{@name} on OpenStreetMap\" target=\"edit\">edit</a></small>"
     o
   end
   def sortkey
     @name.downcase.gsub(/^the /,'')
+  end
+  def ==(other)
+    self.type == other.type and self.id == other.id
   end
 end
 
@@ -142,11 +192,11 @@ class Church < Address
   attr_reader :religion, :denomination
   def initialize(xml)
     super(xml)
-    @religion = get(xml,'religion')
+    @religion = get('religion')
     if @religion then
       @religion.capitalize!
     end
-    @denomination = get(xml,'denomination')
+    @denomination = get('denomination')
     if @denomination then
       @denomination.capitalize!
     end
@@ -182,6 +232,7 @@ def render(city_dir, city, state, place, root)
   dining = parse(File.join(city_dir,'dining.xml'), Address)
   cafes = parse(File.join(city_dir,'cafes.xml'), Cafe)
   icecream = parse(File.join(city_dir,'icecream.xml'), Address)
+  cafes.delete_if {|v| icecream.include?(v) }
 
   entertainment = parse(File.join(city_dir,'entertainment.xml'), Address)
   arts = parse(File.join(city_dir,'arts.xml'), Address)
@@ -191,6 +242,9 @@ def render(city_dir, city, state, place, root)
   playgrounds = []
   leisure.delete_if {|v| playgrounds << v if v.leisure == 'playground'}
   leisure.delete_if {|v| v.type == 'node'}
+  leisure.delete_if {|v| v.attraction == 'animal'}
+  leisure.delete_if {|v| v.access == 'private'}
+  leisure.delete_if {|v| v.leisure == 'stadium'}
 
   hotels = parse(File.join(city_dir,'hotels.xml'), Address)
   churches = parse(File.join(city_dir,'churches.xml'), Church)

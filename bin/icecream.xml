@@ -3,6 +3,21 @@
   <!-- gather results -->
   <union>
     <query type="node">
+      <has-kv k="cuisine" v="ice_cream"/>
+      <has-kv k="name"/>
+      <area-query from="area"/>
+    </query>
+    <query type="way">
+      <has-kv k="cuisine" v="ice_cream"/>
+      <has-kv k="name"/>
+      <area-query from="area"/>
+    </query>
+    <query type="relation">
+      <has-kv k="cuisine" v="ice_cream"/>
+      <has-kv k="name"/>
+      <area-query from="area"/>
+    </query>
+    <query type="node">
       <has-kv k="amenity" v="ice_cream"/>
       <has-kv k="name"/>
       <area-query from="area"/>

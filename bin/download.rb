@@ -3,7 +3,7 @@
 require 'rubygems'
 require 'active_support/inflector'
 
-require_relative 'generate'
+require_relative 'render'
 require 'nokogiri'
 require 'open-uri'
 require 'erb'
@@ -16,7 +16,15 @@ ROOT_DIR=File.dirname(File.dirname(__FILE__))
 QUERY_DIR=File.join(ROOT_DIR, 'bin')
 DATA_DIR=File.join(ROOT_DIR, 'data')
 HTML_DIR=File.join(ROOT_DIR, 'html')
-STATES=['Colorado', 'Connecticut', 'Wyoming']
+STATES=['Alabama', 
+  'Alaska', 
+  'Arizona', 
+  'Arkansas', 
+ # 'California',
+  'Colorado', 
+  'Connecticut', 
+  'Delaware',
+  'Wyoming']
 
 FileUtils.mkdir_p DATA_DIR
 
@@ -141,6 +149,11 @@ STATES.each do |state|
     a = City.new(node)
     cities << a
   end
+  city_names = cities.collect { |c| c.name }
+  dups = city_names.select { |e| city_names.count(e) > 1 }.uniq
+  if not dups.empty? then
+    $stderr.puts "Duplicate cities in #{state}: #{dups}"
+  end
   state_dir=File.join(DATA_DIR, state.parameterize) 
   state_html=File.join(HTML_DIR, state.parameterize, 'index.html')
   FileUtils.mkdir_p state_dir
@@ -205,10 +218,11 @@ STATES.each do |state|
     cities.each do |city_node|
       city = city_node.name
       if city_node.empty? then
-        places.delete(city)
         puts "Not including #{city} in index because it is empty"
+        places.delete(city)
       elsif places[city].nil? then
         places[city] = Place.city(city, state)
+        puts "Added #{city}"
       end
     end
     render_state(state, state_html, places, '..')

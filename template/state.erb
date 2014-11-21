@@ -43,15 +43,22 @@
  
 
       <div id="textarea">
+        <h1>Guides by county</h1>
         <% counties.each do |county| %>
-        <h2>Guides for <%= county %></h2>
-        <% places.values.select { |p| p.county == county }.each do |p| %>
-          <p><a href="<%= p.city.parameterize %>/" title="Guide to <%= p.city %>, <%= p.state %>"><%= p.city %></a></p>
+        <h2><%= county %></h2>
+        <% places.values.select { |p| p.county == county }.sort_by { |p| p.city }.each do |p| %>
+          <a href="<%= p.city.parameterize %>/" title="Guide to <%= p.city %>, <%= p.state %>"><%= p.city %></a>&nbsp;&nbsp;&nbsp; 
         <% end %>
         <br>
         <br>
         <% end %>
 
+        <h1>Guides by name</h1>
+        <% places.values.sort_by { |p| p.city }.each do |p| %>
+          <a href="<%= p.city.parameterize %>/" title="Guide to <%= p.city %>, <%= p.state %>"><%= p.city %></a>&nbsp;&nbsp;&nbsp; 
+        <% end %>
+        <br>
+        <br>
       </div>
 
       <div id="sidebar">
