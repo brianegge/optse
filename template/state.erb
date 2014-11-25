@@ -59,6 +59,11 @@
         <% end %>
         <br>
         <br>
+        <h3>Cities without any points of interest. Do you know this area? Why not add something to the map.</h3>
+        <p style="font-size:8">
+        <% empty_cities.sort.each do |city| %>
+          <a href="<%= city.edit %>" target="osm"><%= city.name %></a>&nbsp;&nbsp;   
+        <% end %>
       </div>
 
       <div id="sidebar">

@@ -1,0 +1,6 @@
+[submodule "map-icons"]
+	path = map-icons
+	url = https://github.com/openstreetmap/map-icons
+[submodule "staticmaplite"]
+	path = staticmaplite
+	url = https://github.com/dfacts/staticmaplite.git

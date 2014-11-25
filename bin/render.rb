@@ -5,10 +5,37 @@ require 'open-uri'
 require 'erb'
 require 'ostruct'
 require 'geonames_api'
+require 'filecache'
 
 $html_root="."
 GeoNamesAPI.username = 'brianegge'
-GeoNamesAPI.lang = :en
+GeoNamesAPI.lang = 'e:en'
+$geocache = FileCache.new(domain='intersections', root_dir='data/cache')
+
+def getNear(lat,lon)
+  key = [lat,lon]
+  v = $geocache.get(key)
+  if not v.nil? then
+    return v
+  end
+  begin
+    near = GeoNamesAPI::NearestIntersection.find(@lat,@lon)
+    sleep 0.2
+    if not near.intersection.nil? then
+      print '.'
+      v = near.intersection['street1'] + " and " + near.intersection['street2']
+      $geocache.set(key,v)
+      return v
+    else
+      print '*'
+    end
+  rescue NoMethodError
+    print 'M'
+  rescue OpenURI::HTTPError
+    print 'X'
+  end
+  return nil
+end
 
 class Address
   attr_reader :type, :id, :lat, :lon, :name, :leisure, :attraction, :access
@@ -75,6 +102,9 @@ class Address
   def wifi?
     get('internet_access') =~ /yes|wlan/
   end
+  def wheelchair?
+    get('wheelchair') == 'yes'
+  end
   def nearest_intersection
     begin
       if @near.nil? then
@@ -127,7 +157,7 @@ class Address
     if @street then
       o += "#{@housenumber} #{@street}<br />\n"
     else
-      n = self.nearest_intersection
+      n = getNear(@lat,@lon)
       o += "#{n}<br />\n" if not n.nil?
     end
     # o += " <small><a href=\"http://www.google.com/maps/place/#{@name}/@#{@lat},#{@lon}\" target=\"map\">map</a><br />\n</small>"
@@ -168,6 +198,10 @@ class Address
     if bitcoin? then
       o += "<img src=\"#{$html_root}/images/bitcoin16.png\" alt_text=\"Merchant accepts Bitcoin payments\">\&nbsp;"
     end
+    if wheelchair? then
+      o += "<img src=\"#{$html_root}/square.small/transport/handicapped.png\" alt_text=\"Handicap accessable\">&nbsp;"
+    end
+
     # o += "<small><a href=\"#{@edit}\" title=\"Edit #{@name} on OpenStreetMap\" target=\"edit\">edit</a></small>"
     o
   end
@@ -259,7 +293,7 @@ def render(city_dir, city, state, place, root)
   end
 end
 
-def render_state(state, state_html, places, root)
+def render_state(state, state_html, places, empty_cities, root)
   $html_root=root
   counties = places.values.collect { |p| p.county }.uniq
   renderer = ERB.new(File.read('template/state.erb'))

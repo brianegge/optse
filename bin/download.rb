@@ -10,6 +10,7 @@ require 'erb'
 require 'fileutils'
 require 'tempfile'
 require 'json'
+require 'filecache'
 
 EMAIL='brianegge@gmail.com'
 ROOT_DIR=File.dirname(File.dirname(__FILE__))
@@ -24,12 +25,15 @@ STATES=['Alabama',
   'Colorado', 
   'Connecticut', 
   'Delaware',
+  'Florida',
+  'Georgia',
   'Wyoming']
 
 FileUtils.mkdir_p DATA_DIR
+$placecache = FileCache.new(domain='places', root_dir='data/cache')
 
 class City
-  attr_reader :type, :id, :name
+  attr_reader :type, :id, :name, :edit
   attr_accessor :empty
   alias_method :empty?, :empty
   def initialize(xml)
@@ -39,6 +43,7 @@ class City
     @county = get(xml,'is_in:county')
     @lat = xml.at_xpath('center').attr('lat')
     @lon = xml.at_xpath('center').attr('lon')
+    @edit = "http://www.openstreetmap.org/edit?editor=id&#{@type}=#{@id}#map=19/#{@lat}/#{@lon}"
     # TODO, use label center if set
   end
   def get(xml, key)
@@ -60,6 +65,9 @@ class City
   def center
     "#{@lat},#{@lon}"
   end
+  def <=> other
+    self.name <=> other.name
+  end
 end
 
 class Place
@@ -68,15 +76,24 @@ class Place
     protected :new
     def city(city, state)
       url="http://nominatim.openstreetmap.org/search?format=json&city=#{URI::encode(city)}&state=#{URI::encode(state)}&email=#{URI::encode(EMAIL)}&addressdetails=1&limit=1"
-      json = JSON.load(open(url))
+      json = $placecache.get(url)
+      if json.nil? then
+        json = JSON.load(open(url))
+        $placecache.set(url,json)
+        sleep 1
+      end
       raise "Failed to open #{url}" if json.nil?
       raise ArgumentError, "No results for #{url}" if (json.empty? or json[0].nil?)
-      sleep 1
       new(json[0])
     end
     def state(state)
-      json = JSON.load(open("http://nominatim.openstreetmap.org/search?format=json&state=#{URI::encode(state)}&email=#{URI::encode(EMAIL)}&addressdetails=1&limit=1"))
-      sleep 1
+      url="http://nominatim.openstreetmap.org/search?format=json&state=#{URI::encode(state)}&email=#{URI::encode(EMAIL)}&addressdetails=1&limit=1"
+      json = $placecache.get(url)
+      if json.nil? then
+        json = JSON.load(open(url))
+        $placecache.set(url,json)
+        sleep 1
+      end
       new(json[0])
     end
   end
@@ -91,7 +108,7 @@ class Place
     @type = json['type']
     @boundingbox = json['boundingbox']
     @county = json['address']['county']
-    @city = (json['address']['city'] or json['address']['village'] or json['address']['hamlet'])
+    @city = (json['address']['city'] or json['address']['suburb'] or json['address']['town'] or json['address']['village'] or json['address']['hamlet'])
     @state = json['address']['state']
   end
   def ref
@@ -109,20 +126,23 @@ class Place
     "#{lat},#{lon}"
   end
 end
+#
+#STATIC_MAP='http://staticmap.openstreetmap.de/staticmap.php'
+STATIC_MAP='http://optse.com/staticmaplite/staticmap.php'
 def banner(title, center, zoom, output)
   puts "rendering banner #{title}"
   city_map=Tempfile.new(['map','.png']).path
   city_text=Tempfile.new(['text','.png']).path
   city_text2=Tempfile.new(['text2','.png']).path
-  %x{wget --quiet -O #{city_map} "http://staticmap.openstreetmap.de/staticmap.php?center=#{center}&zoom=#{zoom}&size=900x200&maptype=mapnik"}
+  %x{wget --quiet -O #{city_map} "#{STATIC_MAP}?center=#{center}&zoom=#{zoom}&size=900x200&maptype=mapnik"}
   `convert -background none -gravity center -stroke grey -size 900x200 -fill black  -font Century-Schoolbook-Roman -blur 0x5 -fill black "label:#{title}" #{city_text}`
   `convert -background none -gravity center -stroke grey -size 900x200 -fill black  -font Century-Schoolbook-Roman "label:#{title}"  #{city_text2}`
   `convert -page 0 #{city_map} -page +5+5 #{city_text} -page -0 #{city_text2} -layers flatten #{output}`
 end
 
 STATES.each do |state|
-  out=File.join(DATA_DIR,state.parameterize + ".xml")
-  if !File.exist?(out) then
+  state_xml_file=File.join(DATA_DIR,state.parameterize + ".xml")
+  if !File.exist?(state_xml_file) then
     place = Place.state(state)
     input=File.join(QUERY_DIR,"states.xml")
     template = Nokogiri.XML(File.open(input))
@@ -130,12 +150,12 @@ STATES.each do |state|
     node.attributes['ref'].value = place.ref.to_s
     query=Tempfile.new('query')
     File.open(query.path, 'w') { |f| f.print(template.to_xml) }
-    puts `wget --no-verbose --user-agent="brianegge@gmail.com" -O "#{out}" --post-file="#{query.path}" "http://overpass-api.de/api/interpreter"`
+    puts `wget --no-verbose --user-agent="brianegge@gmail.com" -O "#{state_xml_file}" --post-file="#{query.path}" "http://overpass-api.de/api/interpreter"`
     sleep 1
   else
-    puts "#{out} exists"
+    puts "#{state_xml_file} exists"
   end
-  doc = Nokogiri.XML(File.open(out))
+  doc = Nokogiri.XML(File.open(state_xml_file))
   cities = []
   doc.xpath("//relation").each do |node| 
     begin
@@ -152,7 +172,7 @@ STATES.each do |state|
   city_names = cities.collect { |c| c.name }
   dups = city_names.select { |e| city_names.count(e) > 1 }.uniq
   if not dups.empty? then
-    $stderr.puts "Duplicate cities in #{state}: #{dups}"
+    $stderr.puts "Duplicate cities in #{state}: #{dups.sort}"
   end
   state_dir=File.join(DATA_DIR, state.parameterize) 
   state_html=File.join(HTML_DIR, state.parameterize, 'index.html')
@@ -168,7 +188,7 @@ STATES.each do |state|
     place = nil
     if File.exist?(city_empty) then
       city_node.empty = true
-    elsif File.exist?(city_html) then
+    elsif File.exist?(city_html) and File.mtime(city_html) > File.mtime(city_dir) then
     else
       FileUtils.mkdir_p city_html_dir
       begin 
@@ -213,19 +233,30 @@ STATES.each do |state|
       banner(city, place.center, 15, city_banner)
     end
   end
-  if not File.exist?(state_html) then
+  empty_cities=[]
+  if not File.exist?(state_html) or File.mtime(state_xml_file) > File.mtime(state_html) then
     puts "Rendering state #{state}"
     cities.each do |city_node|
       city = city_node.name
       if city_node.empty? then
         puts "Not including #{city} in index because it is empty"
         places.delete(city)
+        empty_cities << city_node
       elsif places[city].nil? then
         places[city] = Place.city(city, state)
         puts "Added #{city}"
       end
     end
-    render_state(state, state_html, places, '..')
+    places.each do |k,v| 
+      if v.county.nil? then
+        p v
+        raise "City #{k} has no county information"
+      elsif v.city.nil? then
+        p v
+        raise "City #{k} has no city information"
+      end
+    end
+    render_state(state, state_html, places, empty_cities, '..')
   end
   state_banner=File.join(HTML_DIR, state.parameterize, 'banner.png')
   if not File.exist?(state_banner) then
