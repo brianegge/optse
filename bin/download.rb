@@ -27,6 +27,9 @@ STATES=['Alabama',
   'Delaware',
   'Florida',
   'Georgia',
+  'Hawaii',
+  'Idaho',
+  'Illinois',
   'Wyoming']
 
 FileUtils.mkdir_p DATA_DIR
@@ -37,6 +40,7 @@ class City
   attr_accessor :empty
   alias_method :empty?, :empty
   def initialize(xml)
+    @xml = xml
     @type = xml.name
     @id = xml.attr('id')
     @name = ( get(xml,'name') or get(xml,'place_name') or get(xml,'tiger:NAME') or raise ArgumentError,"Can't find place name in #{xml}" )
@@ -64,6 +68,27 @@ class City
   end
   def center
     "#{@lat},#{@lon}"
+  end
+  def wikivoyage
+    if @wikivoyage.nil? then
+      url="http://en.wikivoyage.org/w/api.php?action=query&list=geosearch&gsradius=10000&gscoord=#{@lat}%7C#{@lon}&format=json&continue="
+      json = JSON.load(open(url))
+      # puts JSON.pretty_generate(json)
+      if json and json['query']['geosearch'].size > 0 then
+        @wikivoyage = json['query']['geosearch'][0]['title']
+      end
+    end
+    @wikivoyage
+  end
+  def wikipedia
+    n = get(@xml,'wikipedia')
+    if n then
+      return n.split(':')[1]
+    end
+  end
+  def wikipedia_url
+    w = get(@xml,'wikipedia').split(':')
+    return "http://#{w[0]}.wikipedia.org/wiki/#{w[1].gsub(/_/,' ')}"
   end
   def <=> other
     self.name <=> other.name
@@ -141,6 +166,9 @@ def banner(title, center, zoom, output)
 end
 
 STATES.each do |state|
+  if ARGV[0] and ARGV[0].downcase != state.downcase then
+    next
+  end
   state_xml_file=File.join(DATA_DIR,state.parameterize + ".xml")
   if !File.exist?(state_xml_file) then
     place = Place.state(state)
@@ -216,7 +244,7 @@ STATES.each do |state|
           sleep 1
         end
       end
-      s = render(city_dir, city, state, place, "../..")
+      s = render_city(city_dir, city_node, state, place, "../..")
       if s.nil? then
         city_node.empty = true
         FileUtils.touch(city_empty)

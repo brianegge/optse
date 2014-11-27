@@ -11,6 +11,7 @@ $html_root="."
 GeoNamesAPI.username = 'brianegge'
 GeoNamesAPI.lang = 'e:en'
 $geocache = FileCache.new(domain='intersections', root_dir='data/cache')
+$reversecache = FileCache.new(domain='reverse', root_dir='data/cache')
 
 def getNear(lat,lon)
   key = [lat,lon]
@@ -123,6 +124,23 @@ class Address
     $stdout.flush
     nil
   end
+  def getAddress
+    url="http://nominatim.openstreetmap.org/reverse?osm_type=#{@type.upcase[0]}&osm_id=#{@id}&format=json"
+    json = $reversecache.get(url)
+    if json.nil? then
+      json = JSON.load(open(url))
+      if json['error'] then
+        puts url
+        puts JSON.pretty_generate(json)
+        return nil
+      else
+        $reversecache.set(url,json)
+      end
+      sleep 1
+    end
+    @housenumber = json['address']['house_number']
+    @street = json['address']['road']
+  end
   def detail
     if @cuisine then
       cuisine = case @cuisine
@@ -138,10 +156,37 @@ class Address
       nil
     end
   end
+  def image
+    i = get('image')
+    if i then
+      # http://commons.wikimedia.org/wiki/File:AldrichMuseumExterior.jpg
+      if %r{http[s]?://commons.wikimedia.org/wiki/File:(?<name>[^#]*)} =~ i then
+        url = "http://commons.wikimedia.org/w/api.php?action=query&titles=File:#{name}&prop=imageinfo&iilimit=1&iiprop=url&iiurlwidth=128&iiurlheight=128&format=xml&continue="
+        xml = Nokogiri.XML(open(url))
+        thumburl = xml.at_xpath('//imageinfo/ii/@thumburl').value
+        thumbwidth = xml.at_xpath('//imageinfo/ii/@thumbwidth').value
+        thumbheight = xml.at_xpath('//imageinfo/ii/@thumbheight').value
+        descriptionurl = xml.at_xpath('//imageinfo/ii/@descriptionurl').value
+        return "<a href=\"#{descriptionurl}\" target=\"wikimedia\"><img style=\"float: left; margin: 5px;\" src=\"#{thumburl}\" width=\"#{thumbwidth}\" height=\"#{thumbheight}\" /></a>"
+      else
+        $stderr.puts "Failed to parse image #{i}"
+      end
+    else
+      nil
+    end
+  end
   def html
-    o = "<a href=\"#{@view}\" title=\"View #{@name} on OpenStreetMap.org\" target=\"osm\"><strong>#{@name}</strong></a><br />\n"
-    d = detail
-    if d then
+    o = "<div class=\"entry\"><p>"
+    i = image
+    if i then
+      o += i
+    end
+    o += "<a href=\"#{@view}\" title=\"View #{@name} on OpenStreetMap.org\" target=\"osm\"><strong>#{@name}</strong></a>"
+    if get('alt_name') then
+      o += " <i>(" + get('alt_name') + ")</i>"
+    end
+    o += "<br />\n"
+    if detail then
       o += detail + "<br />\n"
     end
     if @description then
@@ -154,14 +199,15 @@ class Address
       end
       o += "</ul>\n"
     end
-    if @street then
+    if @housenumber.nil? then
+      getAddress
+    end
+    if @housenumber and @street then
       o += "#{@housenumber} #{@street}<br />\n"
     else
       n = getNear(@lat,@lon)
       o += "#{n}<br />\n" if not n.nil?
     end
-    # o += " <small><a href=\"http://www.google.com/maps/place/#{@name}/@#{@lat},#{@lon}\" target=\"map\">map</a><br />\n</small>"
-    # o += " <small><a href=\"https://maps.google.com?ll=#{@lat},#{@lon}&q=#{@name}\" target=\"map\">map</a><br />\n</small>"
     if @phone then
       o += "<a href=\"tel:#{@phone}\">#{@phone}</a><br />\n"
     end
@@ -178,7 +224,7 @@ class Address
           uri = URI(@website)
         end
         if uri.host then
-          o += "<a href=\"#{@website}\">#{uri.host.gsub(/^www./,'')}</a>&nbsp;"
+          o += "<a href=\"#{uri}\">#{uri.host.gsub(/^www./,'')}</a>&nbsp;"
         else
           $stderr.puts "Invalid URL: #{@website} #{@edit}"
         end
@@ -201,8 +247,11 @@ class Address
     if wheelchair? then
       o += "<img src=\"#{$html_root}/square.small/transport/handicapped.png\" alt_text=\"Handicap accessable\">&nbsp;"
     end
-
-    # o += "<small><a href=\"#{@edit}\" title=\"Edit #{@name} on OpenStreetMap\" target=\"edit\">edit</a></small>"
+    if @wikipedia then
+      w=@wikipedia.split(':')
+      o += "<a href=\"http://#{w[0]}.wikipedia.org/wiki/#{w[1].gsub(/_/,' ')}\" target=\"wikipedia\"><img src=\"#{$html_root}/images/wikipedia16.png\" alt_text=\"#{@name} on Wikipedia\"></a>&nbsp;"
+    end
+    o += '</p><hr /></div>'
     o
   end
   def sortkey
@@ -218,7 +267,7 @@ class Cafe < Address
     super(xml)
   end
   def detail
-    ""
+    nil
   end
 end
 
@@ -261,7 +310,7 @@ def parse(file, type)
   return output.sort_by { |a| a.sortkey }
 end
 
-def render(city_dir, city, state, place, root)
+def render_city(city_dir, city, state, place, root)
   $html_root=root
   dining = parse(File.join(city_dir,'dining.xml'), Address)
   cafes = parse(File.join(city_dir,'cafes.xml'), Cafe)
