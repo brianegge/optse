@@ -35,7 +35,7 @@ def getNear(lat,lon)
   rescue OpenURI::HTTPError
     print 'X'
   end
-  return nil
+  return @street
 end
 
 class Address
@@ -85,6 +85,7 @@ class Address
     score += 2 unless @descrition.nil?
     score += 1 unless @website.nil?
     score += 2 unless @opening_hours.nil?
+    score += 20 if get('image')
     score
   end
   def get(key)
@@ -167,9 +168,9 @@ class Address
         thumbwidth = xml.at_xpath('//imageinfo/ii/@thumbwidth').value
         thumbheight = xml.at_xpath('//imageinfo/ii/@thumbheight').value
         descriptionurl = xml.at_xpath('//imageinfo/ii/@descriptionurl').value
-        return "<a href=\"#{descriptionurl}\" target=\"wikimedia\"><img style=\"float: left; margin: 5px;\" src=\"#{thumburl}\" width=\"#{thumbwidth}\" height=\"#{thumbheight}\" /></a>"
+        return "<a href=\"#{descriptionurl}\" target=\"wikimedia\"><img style=\"float: left; margin: 5px;\" src=\"#{thumburl}\" width=\"#{thumbwidth}\" height=\"#{thumbheight}\" alt=\"Wikimedia Commons image of #{name}\" /></a>"
       else
-        $stderr.puts "Failed to parse image #{i}"
+        $stderr.puts "Failed to parse image #{i} #{@edit}"
       end
     else
       nil
@@ -236,20 +237,20 @@ class Address
       o += "Open #{@opening_hours}&nbsp;&nbsp;"
     end
     if organic? then
-      o += "<img src=\"#{$html_root}/images/organic16.png\" alt_text=\"Organic\" />&nbsp;"
+      o += "<img src=\"#{$html_root}/images/organic16.png\" alt=\"Organic\" />&nbsp;"
     end
     if wifi? then
-      o += "<img src=\"#{$html_root}/images/wifi16.png\" alt_text=\"Free Wifi\">\&nbsp;"
+      o += "<img src=\"#{$html_root}/images/wifi16.png\" alt=\"Free Wifi\">\&nbsp;"
     end
     if bitcoin? then
-      o += "<img src=\"#{$html_root}/images/bitcoin16.png\" alt_text=\"Merchant accepts Bitcoin payments\">\&nbsp;"
+      o += "<img src=\"#{$html_root}/images/bitcoin16.png\" alt=\"Merchant accepts Bitcoin payments\">\&nbsp;"
     end
     if wheelchair? then
-      o += "<img src=\"#{$html_root}/square.small/transport/handicapped.png\" alt_text=\"Handicap accessable\">&nbsp;"
+      o += "<img src=\"#{$html_root}/square.small/transport/handicapped.png\" alt=\"Handicap accessable\">&nbsp;"
     end
     if @wikipedia then
       w=@wikipedia.split(':')
-      o += "<a href=\"http://#{w[0]}.wikipedia.org/wiki/#{w[1].gsub(/_/,' ')}\" target=\"wikipedia\"><img src=\"#{$html_root}/images/wikipedia16.png\" alt_text=\"#{@name} on Wikipedia\"></a>&nbsp;"
+      o += "<a href=\"http://#{w[0]}.wikipedia.org/wiki/#{w[1].gsub(/_/,' ')}\" target=\"wikipedia\"><img src=\"#{$html_root}/images/wikipedia16.png\" alt=\"#{@name} on Wikipedia\"></a>&nbsp;"
     end
     o += '</p><hr /></div>'
     o
@@ -281,6 +282,7 @@ class Church < Address
     end
     @denomination = get('denomination')
     if @denomination then
+      @denomination.gsub!(/_/,' ')
       @denomination.capitalize!
     end
   end
@@ -327,7 +329,7 @@ def render_city(city_dir, city, state, place, root)
   leisure.delete_if {|v| v.type == 'node'}
   leisure.delete_if {|v| v.attraction == 'animal'}
   leisure.delete_if {|v| v.access == 'private'}
-  leisure.delete_if {|v| v.leisure == 'stadium'}
+  leisure.delete_if {|v| ['stadium','sports_centre'].member?(v.leisure)}
 
   hotels = parse(File.join(city_dir,'hotels.xml'), Address)
   churches = parse(File.join(city_dir,'churches.xml'), Church)

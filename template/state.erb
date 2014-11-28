@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
 
@@ -62,7 +62,7 @@
         <h4>Cities without any points of interest. Do you know this area? Why not add something to the map.</h3>
         <p style="font-size:x-small;">
         <% empty_cities.sort.each do |city| %>
-          <a href="<%= city.edit %>" target="osm"><%= city.name %></a>&nbsp;&nbsp;   
+          <a href="<%= city.view %>" target="osm"><%= city.name %></a>&nbsp;&nbsp;   
         <% end %>
         </p>
       </div>

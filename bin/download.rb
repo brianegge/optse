@@ -30,13 +30,16 @@ STATES=['Alabama',
   'Hawaii',
   'Idaho',
   'Illinois',
+  'Indiana',
+  'Iowa',
+  'Kansas',
   'Wyoming']
 
 FileUtils.mkdir_p DATA_DIR
 $placecache = FileCache.new(domain='places', root_dir='data/cache')
 
 class City
-  attr_reader :type, :id, :name, :edit
+  attr_reader :type, :id, :name, :edit, :view
   attr_accessor :empty
   alias_method :empty?, :empty
   def initialize(xml)
@@ -48,6 +51,7 @@ class City
     @lat = xml.at_xpath('center').attr('lat')
     @lon = xml.at_xpath('center').attr('lon')
     @edit = "http://www.openstreetmap.org/edit?editor=id&#{@type}=#{@id}#map=19/#{@lat}/#{@lon}"
+    @view = "http://www.openstreetmap.org/#{@type}/#{@id}"
     # TODO, use label center if set
   end
   def get(xml, key)
