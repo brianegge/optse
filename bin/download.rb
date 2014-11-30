@@ -33,6 +33,8 @@ STATES=['Alabama',
   'Indiana',
   'Iowa',
   'Kansas',
+  'Kentucky',
+  'Louisiana',
   'Wyoming']
 
 FileUtils.mkdir_p DATA_DIR
@@ -100,7 +102,7 @@ class City
 end
 
 class Place
-  attr_reader :display_name, :county, :city, :state, :link
+  attr_reader :display_name, :county, :city, :state, :link, :boundingbox
   class << self
     protected :new
     def city(city, state)
@@ -158,12 +160,24 @@ end
 #
 #STATIC_MAP='http://staticmap.openstreetmap.de/staticmap.php'
 STATIC_MAP='http://optse.com/staticmaplite/staticmap.php'
-def banner(title, center, zoom, output)
+DEGREES_IN_CIRCLE=360.0
+def banner(title, place, output)
   puts "rendering banner #{title}"
+  lngDiff = (place.boundingbox[2].to_f - place.boundingbox[3].to_f).abs
+  puts "Center: #{place.center}, Bounds: #{place.boundingbox}, Diff: #{lngDiff}"
+  if (lngDiff < DEGREES_IN_CIRCLE / 2 ** 20) then
+    zoomLevel = 21
+  else
+    zoomLevel =  (-1*( (Math.log(lngDiff)/Math.log(2)) - (Math.log(360)/Math.log(2)))).to_i + 2
+    if (zoomLevel < 1) then
+      zoomLevel = 1
+    end
+  end
+  puts "Zoom: #{zoomLevel}"
   city_map=Tempfile.new(['map','.png']).path
   city_text=Tempfile.new(['text','.png']).path
   city_text2=Tempfile.new(['text2','.png']).path
-  %x{wget --quiet -O #{city_map} "#{STATIC_MAP}?center=#{center}&zoom=#{zoom}&size=900x200&maptype=mapnik"}
+  %x{wget --quiet -O #{city_map} "#{STATIC_MAP}?center=#{place.center}&zoom=#{zoomLevel}&size=900x200&maptype=mapnik"}
   `convert -background none -gravity center -stroke grey -size 900x200 -fill black  -font Century-Schoolbook-Roman -blur 0x5 -fill black "label:#{title}" #{city_text}`
   `convert -background none -gravity center -stroke grey -size 900x200 -fill black  -font Century-Schoolbook-Roman "label:#{title}"  #{city_text2}`
   `convert -page 0 #{city_map} -page +5+5 #{city_text} -page -0 #{city_text2} -layers flatten #{output}`
@@ -262,7 +276,7 @@ STATES.each do |state|
         next
       end
       place ||= Place.city(city, state)
-      banner(city, place.center, 15, city_banner)
+      banner(city, place, city_banner)
     end
   end
   empty_cities=[]
@@ -293,7 +307,7 @@ STATES.each do |state|
   state_banner=File.join(HTML_DIR, state.parameterize, 'banner.png')
   if not File.exist?(state_banner) then
     place = Place.state(state)
-    banner(state, place.center, 9, state_banner)
+    banner(state, place, state_banner)
   end
 end
 index_html=File.join(HTML_DIR, 'index.html')

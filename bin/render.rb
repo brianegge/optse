@@ -126,7 +126,8 @@ class Address
     nil
   end
   def getAddress
-    url="http://nominatim.openstreetmap.org/reverse?osm_type=#{@type.upcase[0]}&osm_id=#{@id}&format=json"
+    #url="http://nominatim.openstreetmap.org/reverse?osm_type=#{@type.upcase[0]}&osm_id=#{@id}&format=json&email=#{EMAIL}"
+    url="http://open.mapquestapi.com/nominatim/v1/reverse.php?osm_type=#{@type.upcase[0]}&osm_id=#{@id}&format=json&email=#{EMAIL}"
     json = $reversecache.get(url)
     if json.nil? then
       json = JSON.load(open(url))
@@ -137,7 +138,6 @@ class Address
       else
         $reversecache.set(url,json)
       end
-      sleep 1
     end
     @housenumber = json['address']['house_number']
     @street = json['address']['road']
@@ -220,8 +220,8 @@ class Address
           uri = URI(@website)
         end
         if uri.scheme.nil? then
+          $stderr.puts "URL missing scheme: #{@website} #{@edit}"
           @website = "http://#{@website}"
-          $stderr.puts "Invalid URL (missing scheme): #{@website} #{@edit}"
           uri = URI(@website)
         end
         if uri.host then
@@ -246,7 +246,7 @@ class Address
       o += "<img src=\"#{$html_root}/images/bitcoin16.png\" alt=\"Merchant accepts Bitcoin payments\">\&nbsp;"
     end
     if wheelchair? then
-      o += "<img src=\"#{$html_root}/square.small/transport/handicapped.png\" alt=\"Handicap accessable\">&nbsp;"
+      o += "<img src=\"#{$html_root}/maki/disability-18.png\" alt=\"Handicap accessable\">&nbsp;"
     end
     if @wikipedia then
       w=@wikipedia.split(':')
@@ -329,7 +329,7 @@ def render_city(city_dir, city, state, place, root)
   leisure.delete_if {|v| v.type == 'node'}
   leisure.delete_if {|v| v.attraction == 'animal'}
   leisure.delete_if {|v| v.access == 'private'}
-  leisure.delete_if {|v| ['stadium','sports_centre'].member?(v.leisure)}
+  leisure.delete_if {|v| ['stadium','sports_centre','pitch'].member?(v.leisure)}
 
   hotels = parse(File.join(city_dir,'hotels.xml'), Address)
   churches = parse(File.join(city_dir,'churches.xml'), Church)

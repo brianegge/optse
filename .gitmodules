@@ -4,3 +4,6 @@
 [submodule "staticmaplite"]
 	path = staticmaplite
 	url = https://github.com/dfacts/staticmaplite.git
+[submodule "maki"]
+	path = maki
+	url = https://github.com/mapbox/maki.git
