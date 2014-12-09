@@ -64,7 +64,7 @@ class Address
     @attraction = get('actraction')
     @beers = get('brewery')
     @cuisine = get('cuisine')
-    @description = get('description')
+    @description = (get('description') or get('note'))
     @housenumber = get('addr:housenumber')
     @leisure = get('leisure')
     @name = get('name')

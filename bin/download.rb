@@ -4,6 +4,7 @@ require 'rubygems'
 require 'active_support/inflector'
 
 require_relative 'render'
+require_relative 'osmbase'
 require 'nokogiri'
 require 'open-uri'
 require 'erb'
@@ -35,41 +36,48 @@ STATES=['Alabama',
   'Kansas',
   'Kentucky',
   'Louisiana',
+  'Maine',
+  'Maryland',
+  'Massachusetts',
+  'Michigan',
+  'Minnesota',
+  'Mississippi',
+  'Missouri',
+  'Montana',
+  'Nebraska',
+  'Nevada',
+  'New Hampshire',
   'Wyoming']
 
 FileUtils.mkdir_p DATA_DIR
 $placecache = FileCache.new(domain='places', root_dir='data/cache')
 
-class City
-  attr_reader :type, :id, :name, :edit, :view
+class City < OsmBase
+  attr_reader :name, :edit, :view
   attr_accessor :empty
   alias_method :empty?, :empty
   def initialize(xml)
-    @xml = xml
-    @type = xml.name
-    @id = xml.attr('id')
-    @name = ( get(xml,'name') or get(xml,'place_name') or get(xml,'tiger:NAME') or raise ArgumentError,"Can't find place name in #{xml}" )
-    @county = get(xml,'is_in:county')
+    super(xml)
+    @name = ( get('name') or get('place_name') or get('tiger:NAME') or raise ArgumentError,"Can't find place name in #{xml}" )
+    @county = get('is_in:county')
     @lat = xml.at_xpath('center').attr('lat')
     @lon = xml.at_xpath('center').attr('lon')
-    @edit = "http://www.openstreetmap.org/edit?editor=id&#{@type}=#{@id}#map=19/#{@lat}/#{@lon}"
-    @view = "http://www.openstreetmap.org/#{@type}/#{@id}"
     # TODO, use label center if set
   end
-  def get(xml, key)
-    node = xml.at_xpath("tag[@k='#{key}']")
+  def get(key)
+    node = @xml.at_xpath("tag[@k='#{key}']")
     if node then
       return node.attr('v')
     end
     return nil
   end
   def ref
-    if @type == 'way' then
-      2400000000 + @id.to_i
-    elsif @type == 'relation' then
-      3600000000 + @id.to_i
+    if osm_type == 'way' then
+      2400000000 + osm_id.to_i
+    elsif osm_type == 'relation' then
+      3600000000 + osm_id.to_i
     else
-      @id.to_i
+      osm_id.to_i
     end
   end
   def center
@@ -87,14 +95,17 @@ class City
     @wikivoyage
   end
   def wikipedia
-    n = get(@xml,'wikipedia')
+    n = get('wikipedia')
     if n then
       return n.split(':')[1]
     end
   end
   def wikipedia_url
-    w = get(@xml,'wikipedia').split(':')
+    w = get('wikipedia').split(':')
     return "http://#{w[0]}.wikipedia.org/wiki/#{w[1].gsub(/_/,' ')}"
+  end
+  def state
+    get('is_in:state')
   end
   def <=> other
     self.name <=> other.name
@@ -105,8 +116,8 @@ class Place
   attr_reader :display_name, :county, :city, :state, :link, :boundingbox
   class << self
     protected :new
-    def city(city, state)
-      url="http://nominatim.openstreetmap.org/search?format=json&city=#{URI::encode(city)}&state=#{URI::encode(state)}&email=#{URI::encode(EMAIL)}&addressdetails=1&limit=1"
+    def City(city, state, osm_id)
+      url="http://nominatim.openstreetmap.org/search?format=json&city=#{URI::encode(city)}&state=#{URI::encode(state)}&email=#{URI::encode(EMAIL)}&addressdetails=1"
       json = $placecache.get(url)
       if json.nil? then
         json = JSON.load(open(url))
@@ -115,9 +126,19 @@ class Place
       end
       raise "Failed to open #{url}" if json.nil?
       raise ArgumentError, "No results for #{url}" if (json.empty? or json[0].nil?)
-      new(json[0])
+      match = json.find { |j| j['osm_id'] == osm_id } 
+      if match.nil? then
+        match = json[0]
+      end
+      n = new(match)
+      if city != n.city and city != "St. Louis" then
+        puts "url=#{url}"
+        puts JSON.pretty_generate(json)
+        raise "Searched for #{city}, #{state}; but nomination found #{n.city}, #{n.state}"
+      end
+      n
     end
-    def state(state)
+    def State(state)
       url="http://nominatim.openstreetmap.org/search?format=json&state=#{URI::encode(state)}&email=#{URI::encode(EMAIL)}&addressdetails=1&limit=1"
       json = $placecache.get(url)
       if json.nil? then
@@ -139,7 +160,11 @@ class Place
     @type = json['type']
     @boundingbox = json['boundingbox']
     @county = json['address']['county']
-    @city = (json['address']['city'] or json['address']['suburb'] or json['address']['town'] or json['address']['village'] or json['address']['hamlet'])
+    if json['type'] and json['address'][ json['type'] ] then
+      @city = json['address'][ json['type'] ]
+    else
+      @city = (json['address']['city'] or json['address']['suburb'] or json['address']['town'] or json['address']['village'] or json['address']['hamlet'] or json['address']['locality'])
+    end
     @state = json['address']['state']
   end
   def ref
@@ -189,7 +214,7 @@ STATES.each do |state|
   end
   state_xml_file=File.join(DATA_DIR,state.parameterize + ".xml")
   if !File.exist?(state_xml_file) then
-    place = Place.state(state)
+    place = Place.State(state)
     input=File.join(QUERY_DIR,"states.xml")
     template = Nokogiri.XML(File.open(input))
     node = template.at_xpath("//id-query")
@@ -220,6 +245,10 @@ STATES.each do |state|
   if not dups.empty? then
     $stderr.puts "Duplicate cities in #{state}: #{dups.sort}"
   end
+  deleted, cities = cities.partition {|c| c.state and c.state != state }
+  if not deleted.empty? then
+    puts "The following cities did not have a matching state: #{deleted.collect {|c| c.name + ", " + c.state } }"
+  end
   state_dir=File.join(DATA_DIR, state.parameterize) 
   state_html=File.join(HTML_DIR, state.parameterize, 'index.html')
   FileUtils.mkdir_p state_dir
@@ -238,7 +267,7 @@ STATES.each do |state|
     else
       FileUtils.mkdir_p city_html_dir
       begin 
-        place = Place.city(city, state)
+        place = Place.City(city, state, city_node.osm_id)
       rescue ArgumentError
         puts "ignoring #{city}, #{state}"
         FileUtils.touch(city_empty)
@@ -275,7 +304,7 @@ STATES.each do |state|
       if city_node.empty? then
         next
       end
-      place ||= Place.city(city, state)
+      place ||= Place.City(city, state, city_node.osm_id)
       banner(city, place, city_banner)
     end
   end
@@ -289,7 +318,7 @@ STATES.each do |state|
         places.delete(city)
         empty_cities << city_node
       elsif places[city].nil? then
-        places[city] = Place.city(city, state)
+        places[city] = Place.City(city, state, city_node.osm_id)
         puts "Added #{city}"
       end
     end
@@ -306,7 +335,7 @@ STATES.each do |state|
   end
   state_banner=File.join(HTML_DIR, state.parameterize, 'banner.png')
   if not File.exist?(state_banner) then
-    place = Place.state(state)
+    place = Place.State(state)
     banner(state, place, state_banner)
   end
 end
